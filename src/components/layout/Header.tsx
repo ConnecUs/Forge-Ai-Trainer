@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom';
-import { BookOpen, ChevronRight, Cpu, WifiOff } from 'lucide-react';
+import { BookOpen, ChevronRight, Cpu, HelpCircle, WifiOff } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -7,12 +7,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { LexiconGuideDialog } from '@/components/ui/lexicon-tip';
 import { useTrainer } from '@/hooks/useTrainer';
 
 const ROUTE_TITLES: Record<string, string> = {
   '/': 'Overview',
   '/training': 'Training runs',
   '/trained': 'Trained models',
+  '/skills': 'Skill & knowledge studio',
   '/datasets': 'Datasets',
   '/capture': 'Capture studio',
   '/models': 'Model library',
@@ -48,6 +50,18 @@ export default function Header() {
               ? 'Hub :8899 offline'
               : 'Agent offline'}
         </span>
+
+        <LexiconGuideDialog
+          trigger={
+            <button
+              type="button"
+              className="badge cursor-pointer border-border text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            >
+              <HelpCircle size={13} className="text-primary" />
+              Lexicon &amp; guide
+            </button>
+          }
+        />
 
         <Dialog>
           <DialogTrigger className="icon-button" aria-label="Open workspace guide">

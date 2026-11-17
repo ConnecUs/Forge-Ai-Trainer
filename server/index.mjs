@@ -13,10 +13,16 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const DATA_DIR = path.join(ROOT_DIR, 'data');
 const DATASETS_DIR = path.join(DATA_DIR, 'datasets');
 const RUNS_DIR = path.join(DATA_DIR, 'runs');
+const KNOWLEDGE_DIR = path.join(DATA_DIR, 'knowledge');
+const SKILLS_DIR = path.join(DATA_DIR, 'skills');
 const DATASETS_INDEX_PATH = path.join(DATA_DIR, 'datasets.json');
 const RUNS_INDEX_PATH = path.join(DATA_DIR, 'runs.json');
+const KNOWLEDGE_INDEX_PATH = path.join(DATA_DIR, 'knowledge.json');
+const SKILLS_INDEX_PATH = path.join(DATA_DIR, 'skills.json');
 const TRAINED_MODELS_INDEX_PATH = path.join(DATA_DIR, 'trained_models.json');
 const WORKSPACE_PROJECTS_DIR = path.resolve(ROOT_DIR, '..');
+const BOOK_TO_SKILL_DIR =
+  process.env.BOOK_TO_SKILL_DIR || 'C:\\25th_Dynasty_Workspace\\myBookToSkills';
 
 const PORT = Number(process.env.FROGE_PORT || 8901);
 const MODEL_HUB_URL = (process.env.MODEL_HUB_URL || 'http://127.0.0.1:8899').replace(/\/$/, '');
@@ -63,6 +69,8 @@ function withFileLock(filePath, task) {
 async function ensureStorage() {
   await fs.mkdir(DATASETS_DIR, { recursive: true });
   await fs.mkdir(RUNS_DIR, { recursive: true });
+  await fs.mkdir(KNOWLEDGE_DIR, { recursive: true });
+  await fs.mkdir(SKILLS_DIR, { recursive: true });
 
   try {
     await fs.access(DATASETS_INDEX_PATH);
@@ -74,6 +82,18 @@ async function ensureStorage() {
     await fs.access(RUNS_INDEX_PATH);
   } catch {
     await writeJson(RUNS_INDEX_PATH, []);
+  }
+
+  try {
+    await fs.access(KNOWLEDGE_INDEX_PATH);
+  } catch {
+    await writeJson(KNOWLEDGE_INDEX_PATH, []);
+  }
+
+  try {
+    await fs.access(SKILLS_INDEX_PATH);
+  } catch {
+    await writeJson(SKILLS_INDEX_PATH, []);
   }
 
   try {
@@ -755,7 +775,7 @@ async function startWorkerForRun(run) {
 }
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 app.get('/api/health', async (_req, res) => {
   const pythonCommand = await resolvePythonCommand();
@@ -1965,6 +1985,440 @@ app.post('/api/trained-models/:id/telemetry/ping', async (req, res) => {
   const registry = await readJson(TRAINED_MODELS_INDEX_PATH, {});
   const model = await inspectTrainedModel(run, registry?.[run.id], liveSnapshot);
   res.json({ model, gpu });
+});
+
+async function runBookSkillBridge(args) {
+  const pythonCmd = await resolvePythonCommand();
+  const bridgePath = path.join(__dirname, 'book_skill_bridge.py');
+  const { stdout } = await execFileAsync(pythonCmd, [bridgePath, ...args], {
+    timeout: 180_000,
+    maxBuffer: 20 * 1024 * 1024,
+    env: {
+      ...process.env,
+      BOOK_TO_SKILL_DIR,
+      PYTHONIOENCODING: 'utf-8',
+    },
+  });
+  return JSON.parse(stdout.trim());
+}
+
+async function discoverWorkspaceSkills() {
+  const roots = [
+    path.join(BOOK_TO_SKILL_DIR, '.agents', 'skills'),
+    path.join(WORKSPACE_PROJECTS_DIR, 'MyViber', '.agents', 'skills'),
+  ];
+  const found = [];
+
+  for (const root of roots) {
+    const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const skillDir = path.join(root, entry.name);
+      const skillMdPath = path.join(skillDir, 'SKILL.md');
+      const raw = await fs.readFile(skillMdPath, 'utf8').catch(() => '');
+      if (!raw) continue;
+      const nameMatch = raw.match(/^name:\s*(.+)$/m);
+      const descMatch = raw.match(/^description:\s*(.+)$/m);
+      const chaptersCount = await fs
+        .readdir(path.join(skillDir, 'chapters'))
+        .then((files) => files.filter((f) => f.endsWith('.md')).length)
+        .catch(() => 0);
+
+      found.push({
+        id: `ws:${entry.name}`,
+        slug: entry.name,
+        name: (nameMatch?.[1] || entry.name).replace(/^["']|["']$/g, '').trim(),
+        description: (descMatch?.[1] || '').replace(/^["']|["']$/g, '').trim(),
+        skillDir,
+        chaptersCount,
+        sourceRoot: root,
+      });
+    }
+  }
+  return found;
+}
+
+app.get('/api/knowledge/status', async (_req, res) => {
+  try {
+    const [bridgeCheck, knowledgeSources, skills, workspaceSkills] = await Promise.all([
+      runBookSkillBridge(['check']).catch((err) => ({
+        available: false,
+        rootDir: BOOK_TO_SKILL_DIR,
+        error: err instanceof Error ? err.message : String(err),
+        extractors: [],
+      })),
+      readJson(KNOWLEDGE_INDEX_PATH, []),
+      readJson(SKILLS_INDEX_PATH, []),
+      discoverWorkspaceSkills(),
+    ]);
+
+    res.json({
+      bookToSkill: bridgeCheck,
+      knowledgeSources,
+      skills,
+      workspaceSkills,
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.post('/api/knowledge/ingest', async (req, res) => {
+  try {
+    const { name, mode, localPaths, rawText, uploadedFiles } = req.body || {};
+    const id = crypto.randomUUID();
+    const sourceDir = path.join(KNOWLEDGE_DIR, id);
+    const rawDir = path.join(sourceDir, 'raw');
+    await fs.mkdir(rawDir, { recursive: true });
+
+    const inputTargets = [];
+    if (Array.isArray(localPaths)) {
+      for (const p of localPaths) {
+        const trimmed = String(p || '').trim();
+        if (trimmed) inputTargets.push(trimmed);
+      }
+    }
+
+    if (Array.isArray(uploadedFiles)) {
+      for (const file of uploadedFiles) {
+        if (!file?.name || !file?.contentBase64) continue;
+        const safeName = path.basename(String(file.name)).replace(/[<>:"/\\|?*]/g, '_');
+        const destPath = path.join(rawDir, safeName);
+        const buf = Buffer.from(String(file.contentBase64), 'base64');
+        await fs.writeFile(destPath, buf);
+        inputTargets.push(destPath);
+      }
+    }
+
+    if (typeof rawText === 'string' && rawText.trim().length > 0) {
+      const textFile = path.join(rawDir, `${(name || 'notes').replace(/[^a-z0-9_-]/gi, '_')}.md`);
+      await fs.writeFile(textFile, rawText, 'utf8');
+      inputTargets.push(textFile);
+    }
+
+    if (inputTargets.length === 0) {
+      await fs.rm(sourceDir, { recursive: true, force: true }).catch(() => {});
+      res.status(400).json({ error: 'Provide a file upload, local file/folder path, or pasted text.' });
+      return;
+    }
+
+    const extractMode = mode === 'technical' ? 'technical' : 'text';
+    const meta = await runBookSkillBridge([
+      'extract',
+      '--inputs',
+      ...inputTargets,
+      '--mode',
+      extractMode,
+      '--name',
+      String(name || '').trim(),
+      '--output-dir',
+      sourceDir,
+    ]);
+
+    const record = {
+      id,
+      name: String(name || meta.name || 'Knowledge bundle').trim(),
+      mode: extractMode,
+      sourceDir,
+      totalSources: meta.totalSources,
+      words: meta.words,
+      chars: meta.chars,
+      estimatedTokens: meta.estimatedTokens,
+      chaptersDetected: meta.chaptersDetected,
+      hasToc: meta.hasToc,
+      invisibleRemoved: meta.invisibleRemoved,
+      securityFindings: meta.securityFindings || [],
+      glossaryCount: meta.glossaryCount || 0,
+      patternCount: meta.patternCount || 0,
+      sources: meta.sources || [],
+      sectionsPreview: meta.sectionsPreview || [],
+      glossaryPreview: meta.glossaryPreview || [],
+      patternsPreview: meta.patternsPreview || [],
+      created: new Date().toISOString().slice(0, 10),
+    };
+
+    await withFileLock(KNOWLEDGE_INDEX_PATH, async () => {
+      const existing = await readJson(KNOWLEDGE_INDEX_PATH, []);
+      await writeJson(KNOWLEDGE_INDEX_PATH, [record, ...existing]);
+    });
+
+    res.status(201).json({ knowledge: record });
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.delete('/api/knowledge/:id', async (req, res) => {
+  await withFileLock(KNOWLEDGE_INDEX_PATH, async () => {
+    const items = await readJson(KNOWLEDGE_INDEX_PATH, []);
+    await writeJson(
+      KNOWLEDGE_INDEX_PATH,
+      items.filter((k) => k.id !== req.params.id)
+    );
+  });
+  await fs.rm(path.join(KNOWLEDGE_DIR, req.params.id), { recursive: true, force: true }).catch(() => {});
+  res.json({ ok: true });
+});
+
+app.post('/api/skills/build', async (req, res) => {
+  try {
+    const { sourceId, slug, title, description, lens } = req.body || {};
+    const knowledgeSources = await readJson(KNOWLEDGE_INDEX_PATH, []);
+    const source = knowledgeSources.find((k) => k.id === sourceId);
+    if (!source) {
+      res.status(404).json({ error: 'Knowledge source not found' });
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    const safeSlug = String(slug || title || source.name || id)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 64) || `skill-${id.slice(0, 8)}`;
+
+    const skillDir = path.join(SKILLS_DIR, `${safeSlug}-${id.slice(0, 6)}`);
+    const selectedLens = ['claude', 'copilot', 'amp'].includes(lens) ? lens : 'claude';
+
+    const built = await runBookSkillBridge([
+      'build-skill',
+      '--source-dir',
+      source.sourceDir,
+      '--slug',
+      safeSlug,
+      '--title',
+      String(title || source.name),
+      '--description',
+      String(description || ''),
+      '--lens',
+      selectedLens,
+      '--output-dir',
+      skillDir,
+    ]);
+
+    const skillRecord = {
+      id,
+      sourceId: source.id,
+      sourceName: source.name,
+      slug: built.slug,
+      title: built.title,
+      description: built.description,
+      lens: built.lens,
+      skillDir: built.skillDir,
+      chaptersCount: built.chaptersCount,
+      glossaryCount: built.glossaryCount,
+      patternsCount: built.patternsCount,
+      validation: built.validation,
+      securityScan: built.securityScan,
+      created: new Date().toISOString().slice(0, 10),
+    };
+
+    await withFileLock(SKILLS_INDEX_PATH, async () => {
+      const existing = await readJson(SKILLS_INDEX_PATH, []);
+      await writeJson(SKILLS_INDEX_PATH, [skillRecord, ...existing]);
+    });
+
+    res.status(201).json({ skill: skillRecord });
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.get('/api/skills/:id/files', async (req, res) => {
+  try {
+    const skills = await readJson(SKILLS_INDEX_PATH, []);
+    const target = skills.find((s) => s.id === req.params.id);
+    let skillDir = target?.skillDir;
+
+    if (!skillDir && req.query.workspacePath) {
+      skillDir = String(req.query.workspacePath);
+    }
+    if (!skillDir) {
+      res.status(404).json({ error: 'Skill not found' });
+      return;
+    }
+
+    const files = [];
+    for (const name of ['SKILL.md', 'glossary.md', 'patterns.md', 'cheatsheet.md']) {
+      const content = await fs.readFile(path.join(skillDir, name), 'utf8').catch(() => null);
+      if (content !== null) {
+        files.push({ name, content });
+      }
+    }
+    const chapters = await fs
+      .readdir(path.join(skillDir, 'chapters'))
+      .then((list) => list.filter((f) => f.endsWith('.md')).sort())
+      .catch(() => []);
+    for (const ch of chapters.slice(0, 12)) {
+      const content = await fs.readFile(path.join(skillDir, 'chapters', ch), 'utf8').catch(() => null);
+      if (content !== null) {
+        files.push({ name: `chapters/${ch}`, content });
+      }
+    }
+    res.json({ files });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete('/api/skills/:id', async (req, res) => {
+  let removedDir = null;
+  await withFileLock(SKILLS_INDEX_PATH, async () => {
+    const skills = await readJson(SKILLS_INDEX_PATH, []);
+    const target = skills.find((s) => s.id === req.params.id);
+    removedDir = target?.skillDir || null;
+    await writeJson(
+      SKILLS_INDEX_PATH,
+      skills.filter((s) => s.id !== req.params.id)
+    );
+  });
+  if (removedDir) {
+    await fs.rm(removedDir, { recursive: true, force: true }).catch(() => {});
+  }
+  res.json({ ok: true });
+});
+
+app.post('/api/datasets/compile', async (req, res) => {
+  try {
+    const { sourceId, skillId, workspaceSkillPath, name, format, targetTokens, systemPrompt } =
+      req.body || {};
+
+    let inputDir = '';
+    let defaultName = 'Compiled Skill Dataset';
+    let datasetKind = format === 'text' ? 'Documents' : 'Conversations';
+
+    if (skillId) {
+      const skills = await readJson(SKILLS_INDEX_PATH, []);
+      const skill = skills.find((s) => s.id === skillId);
+      if (!skill) {
+        res.status(404).json({ error: 'Skill not found' });
+        return;
+      }
+      inputDir = skill.skillDir;
+      defaultName = `${skill.title} (${format || 'messages'})`;
+    } else if (workspaceSkillPath) {
+      inputDir = String(workspaceSkillPath);
+      defaultName = `${path.basename(inputDir)} (${format || 'messages'})`;
+    } else if (sourceId) {
+      const sources = await readJson(KNOWLEDGE_INDEX_PATH, []);
+      const src = sources.find((k) => k.id === sourceId);
+      if (!src) {
+        res.status(404).json({ error: 'Knowledge source not found' });
+        return;
+      }
+      inputDir = src.sourceDir;
+      defaultName = `${src.name} (${format || 'messages'})`;
+    } else {
+      res.status(400).json({ error: 'Provide sourceId, skillId, or workspaceSkillPath' });
+      return;
+    }
+
+    const datasetId = crypto.randomUUID();
+    const outFile = path.join(DATASETS_DIR, `${datasetId}.jsonl`);
+    const compileFormat = ['messages', 'instruction', 'text'].includes(format)
+      ? format
+      : 'messages';
+    const tokensBudget = Number(targetTokens || 450);
+
+    const stats = await runBookSkillBridge([
+      'compile-dataset',
+      '--input-dir',
+      inputDir,
+      '--format',
+      compileFormat,
+      '--target-tokens',
+      String(tokensBudget),
+      '--system-prompt',
+      String(systemPrompt || ''),
+      '--output-file',
+      outFile,
+    ]);
+
+    const dataset = {
+      id: datasetId,
+      name: String(name || defaultName).trim(),
+      kind: datasetKind,
+      examples: Number(stats.examples),
+      size: formatBytes(Number(stats.sizeBytes || 0)),
+      filePath: outFile,
+      created: new Date().toISOString().slice(0, 10),
+    };
+
+    await withFileLock(DATASETS_INDEX_PATH, async () => {
+      const datasets = await readJson(DATASETS_INDEX_PATH, []);
+      await writeJson(DATASETS_INDEX_PATH, [dataset, ...datasets]);
+    });
+
+    res.status(201).json({ dataset, stats });
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.get('/api/datasets/:id/preview', async (req, res) => {
+  try {
+    const datasets = await readJson(DATASETS_INDEX_PATH, []);
+    const target = datasets.find((d) => d.id === req.params.id);
+    if (!target) {
+      res.status(404).json({ error: 'Dataset not found' });
+      return;
+    }
+    let content = target.content || '';
+    if (!content && target.filePath) {
+      content = await fs.readFile(target.filePath, 'utf8').catch(() => '');
+    }
+    if (!content) {
+      res.json({
+        dataset: target,
+        format: 'sample',
+        totalLines: target.examples,
+        avgChars: 0,
+        sampleRows: [],
+      });
+      return;
+    }
+
+    const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    const parsedRows = [];
+    let messagesCount = 0;
+    let textCount = 0;
+    let totalChars = 0;
+
+    for (let i = 0; i < lines.length; i += 1) {
+      totalChars += lines[i].length;
+      try {
+        const obj = JSON.parse(lines[i]);
+        if (Array.isArray(obj.messages)) messagesCount += 1;
+        else if (typeof obj.text === 'string') textCount += 1;
+        if (i < 15) parsedRows.push(obj);
+      } catch {
+        if (i < 15) parsedRows.push({ raw: lines[i] });
+      }
+    }
+
+    res.json({
+      dataset: target,
+      format:
+        messagesCount > 0 && textCount === 0
+          ? 'messages'
+          : textCount > 0 && messagesCount === 0
+            ? 'text'
+            : 'mixed',
+      totalLines: lines.length,
+      avgChars: lines.length ? Math.round(totalChars / lines.length) : 0,
+      sampleRows: parsedRows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 ensureStorage()

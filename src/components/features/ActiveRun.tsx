@@ -1,6 +1,7 @@
 import { AlertCircle, ArrowUpRight, CircleCheck, Layers3, Pause, Play, Sparkles, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { LexiconTerm } from '@/components/ui/lexicon-tip';
 import { useTrainer } from '@/hooks/useTrainer';
 import LossChart from '@/components/features/LossChart';
 
@@ -114,7 +115,9 @@ export default function ActiveRun() {
 
         <div className="mt-6 flex items-end justify-between">
           <div>
-            <p className="eyebrow text-[10px]">Training loss</p>
+            <p className="eyebrow text-[10px]">
+              <LexiconTerm termKey="trainingLoss" label="Training loss" />
+            </p>
             <p className="mt-2 font-mono text-2xl">{lossDisplay}</p>
           </div>
           <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -137,9 +140,17 @@ export default function ActiveRun() {
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
           <p className="text-xs text-muted-foreground">
-            Rank {run.rank} <span className="mx-2">·</span> LR {run.learningRate}{' '}
+            <LexiconTerm termKey="loraRank" label={`Rank ${run.rank}`} />{' '}
             <span className="mx-2">·</span>{' '}
-            {run.method === 'QLoRA' ? '4-bit quantization' : run.method}
+            <LexiconTerm termKey="learningRate" label={`LR ${run.learningRate}`} />{' '}
+            <span className="mx-2">·</span>{' '}
+            {run.method === 'QLoRA' ? (
+              <LexiconTerm termKey="qlora" label="4-bit quantization" />
+            ) : run.method === 'LoRA' ? (
+              <LexiconTerm termKey="lora" label="LoRA" />
+            ) : (
+              <LexiconTerm termKey="fullFineTune" label="Full fine-tune" />
+            )}
           </p>
 
           <div className="flex flex-wrap items-center gap-2.5">

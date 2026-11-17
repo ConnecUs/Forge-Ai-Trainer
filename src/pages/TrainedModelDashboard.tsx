@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { LexiconTerm } from '@/components/ui/lexicon-tip';
 import TrainedTelemetryCharts from '@/components/features/TrainedTelemetryCharts';
 import {
   addModelAssignment,
@@ -328,7 +329,7 @@ export default function TrainedModelDashboard() {
             <div>
               <h2 className="section-title flex items-center gap-2">
                 <Link2 size={18} className="text-primary" />
-                App &amp; process assignments
+                <LexiconTerm termKey="appAssignments" label="App & process assignments" />
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 Track and configure which local apps, services, or processes can use this adapter.
@@ -683,7 +684,9 @@ export default function TrainedModelDashboard() {
 
           {model.targetModules.length > 0 && (
             <div className="mt-4">
-              <p className="eyebrow mb-2 text-[10px]">Target LoRA modules</p>
+              <p className="eyebrow mb-2 text-[10px]">
+                <LexiconTerm termKey="targetModules" label="Target LoRA modules" />
+              </p>
               <div className="flex flex-wrap gap-1.5">
                 {model.targetModules.map((mod) => (
                   <span key={mod} className="badge font-mono text-[11px]">
@@ -696,7 +699,11 @@ export default function TrainedModelDashboard() {
 
           <div className="mt-5">
             <p className="eyebrow mb-2 flex items-center gap-1.5 text-[10px]">
-              <FolderOpen size={12} /> Saved checkpoints ({model.checkpoints.length})
+              <FolderOpen size={12} />{' '}
+              <LexiconTerm
+                termKey="checkpoints"
+                label={`Saved checkpoints (${model.checkpoints.length})`}
+              />
             </p>
             <div className="space-y-2">
               {model.checkpoints.map((cp) => (

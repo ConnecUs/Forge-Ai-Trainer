@@ -1,10 +1,17 @@
 import type {
   AssignmentStatus,
   AssignmentTargetType,
+  BuiltSkillRecord,
+  CompileDatasetFormat,
+  CompiledDatasetStats,
   Dataset,
+  DatasetPreviewResponse,
   EnvironmentInfo,
   HubModelsResponse,
+  KnowledgeSourceRecord,
+  KnowledgeStatusResponse,
   ModelAvailability,
+  SkillValidationLens,
   TrainedModelDetail,
   TrainedModelDetailResponse,
   TrainedModelsResponse,
@@ -186,4 +193,77 @@ export async function pingModelTelemetry(id: string): Promise<TrainedModelDetail
     }
   );
   return data.model;
+}
+
+export function fetchKnowledgeStatus(): Promise<KnowledgeStatusResponse> {
+  return requestJson<KnowledgeStatusResponse>('/api/knowledge/status');
+}
+
+export async function ingestKnowledgeSource(payload: {
+  name?: string;
+  mode: 'text' | 'technical';
+  localPaths?: string[];
+  rawText?: string;
+  uploadedFiles?: Array<{ name: string; contentBase64: string }>;
+}): Promise<KnowledgeSourceRecord> {
+  const data = await requestJson<{ knowledge: KnowledgeSourceRecord }>('/api/knowledge/ingest', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return data.knowledge;
+}
+
+export async function deleteKnowledgeSource(id: string): Promise<void> {
+  await requestJson<{ ok: boolean }>(`/api/knowledge/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function buildSkillPackage(payload: {
+  sourceId: string;
+  slug?: string;
+  title?: string;
+  description?: string;
+  lens: SkillValidationLens;
+}): Promise<BuiltSkillRecord> {
+  const data = await requestJson<{ skill: BuiltSkillRecord }>('/api/skills/build', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return data.skill;
+}
+
+export function fetchSkillFiles(
+  id: string,
+  workspacePath?: string
+): Promise<{ files: Array<{ name: string; content: string }> }> {
+  const qs = workspacePath ? `?workspacePath=${encodeURIComponent(workspacePath)}` : '';
+  return requestJson<{ files: Array<{ name: string; content: string }> }>(
+    `/api/skills/${encodeURIComponent(id)}/files${qs}`
+  );
+}
+
+export async function deleteSkillPackage(id: string): Promise<void> {
+  await requestJson<{ ok: boolean }>(`/api/skills/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export function compileDatasetFromKnowledge(payload: {
+  sourceId?: string;
+  skillId?: string;
+  workspaceSkillPath?: string;
+  name?: string;
+  format: CompileDatasetFormat;
+  targetTokens: number;
+  systemPrompt?: string;
+}): Promise<{ dataset: Dataset; stats: CompiledDatasetStats }> {
+  return requestJson<{ dataset: Dataset; stats: CompiledDatasetStats }>('/api/datasets/compile', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function fetchDatasetPreview(id: string): Promise<DatasetPreviewResponse> {
+  return requestJson<DatasetPreviewResponse>(`/api/datasets/${encodeURIComponent(id)}/preview`);
 }

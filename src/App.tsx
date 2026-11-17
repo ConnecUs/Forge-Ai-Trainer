@@ -11,6 +11,7 @@ import { TrainerProvider } from '@/hooks/useTrainer';
 const Index = lazy(() => import('@/pages/Index'));
 const Training = lazy(() => import('@/pages/Training'));
 const Datasets = lazy(() => import('@/pages/Datasets'));
+const SkillStudio = lazy(() => import('@/pages/SkillStudio'));
 const Capture = lazy(() => import('@/pages/Capture'));
 const Models = lazy(() => import('@/pages/Models'));
 const TrainedModels = lazy(() => import('@/pages/TrainedModels'));
@@ -22,7 +23,7 @@ const queryClient = new QueryClient();
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
+      <TooltipProvider delayDuration={150}>
         <TrainerErrorBoundary>
           <TrainerProvider>
             <BrowserRouter>
@@ -41,6 +42,7 @@ export default function App() {
                       <Route path="/" element={<Index />} />
                       <Route path="/training" element={<Training />} />
                       <Route path="/datasets" element={<Datasets />} />
+                      <Route path="/skills" element={<SkillStudio />} />
                       <Route path="/capture" element={<Capture />} />
                       <Route path="/models" element={<Models />} />
                       <Route path="/trained" element={<TrainedModels />} />

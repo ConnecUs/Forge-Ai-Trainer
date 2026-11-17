@@ -12,15 +12,22 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { BASE_MODELS } from '@/constants/trainer';
+import type { LexiconKey } from '@/constants/lexicon';
+import { LexiconTip, SettingLabel } from '@/components/ui/lexicon-tip';
 import { useTrainer } from '@/hooks/useTrainer';
 import { trainingSchema, type TrainingValues } from '@/lib/validations';
 import type { HubModel } from '@/types/trainer';
 
-const HYPERPARAM_FIELDS = [
-  { key: 'epochs', label: 'Epochs', type: 'number' },
-  { key: 'rank', label: 'LoRA rank', type: 'number' },
-  { key: 'learningRate', label: 'Learning rate', type: 'text' },
-] as const;
+const HYPERPARAM_FIELDS: ReadonlyArray<{
+  key: 'epochs' | 'rank' | 'learningRate';
+  label: string;
+  type: string;
+  termKey: LexiconKey;
+}> = [
+  { key: 'epochs', label: 'Epochs', type: 'number', termKey: 'epochs' },
+  { key: 'rank', label: 'LoRA rank', type: 'number', termKey: 'loraRank' },
+  { key: 'learningRate', label: 'Learning rate', type: 'text', termKey: 'learningRate' },
+];
 
 interface NewRunDialogProps {
   preselectedModel?: HubModel;
@@ -155,9 +162,7 @@ export default function NewRunDialog({
 
         <form onSubmit={handleSubmit(onSubmit)} className="mt-3 space-y-4">
           <div>
-            <label htmlFor="run-name" className="mb-2 block text-sm">
-              Run name
-            </label>
+            <SettingLabel htmlFor="run-name" label="Run name" termKey="runName" />
             <input id="run-name" className="field" {...register('name')} />
             {errors.name && (
               <p role="alert" className="mt-1 text-sm text-destructive">
@@ -167,33 +172,36 @@ export default function NewRunDialog({
           </div>
 
           <div>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <label htmlFor="base-model" className="text-sm">
-                Base model {modelOptions.length > 0 ? `(${modelOptions.length} shown)` : ''}
-              </label>
-              {hubModels.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTrainableOnly((prev) => !prev)}
-                    className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-                      trainableOnly
-                        ? 'border-primary/40 bg-primary/10 text-primary'
-                        : 'border-border text-muted-foreground'
-                    }`}
-                  >
-                    {trainableOnly ? 'Verified trainable' : 'All formats'}
-                  </button>
-                  <input
-                    type="text"
-                    value={modelFilter}
-                    onChange={(e) => setModelFilter(e.target.value)}
-                    placeholder="Filter models…"
-                    className="h-8 w-40 rounded-md border border-border bg-background px-2.5 text-xs"
-                  />
-                </div>
-              )}
-            </div>
+            <SettingLabel
+              htmlFor="base-model"
+              label={`Base model ${modelOptions.length > 0 ? `(${modelOptions.length} shown)` : ''}`}
+              termKey="baseModel"
+              className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm"
+              rightSlot={
+                hubModels.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTrainableOnly((prev) => !prev)}
+                      className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                        trainableOnly
+                          ? 'border-primary/40 bg-primary/10 text-primary'
+                          : 'border-border text-muted-foreground'
+                      }`}
+                    >
+                      {trainableOnly ? 'Verified trainable' : 'All formats'}
+                    </button>
+                    <input
+                      type="text"
+                      value={modelFilter}
+                      onChange={(e) => setModelFilter(e.target.value)}
+                      placeholder="Filter models…"
+                      className="h-8 w-40 rounded-md border border-border bg-background px-2.5 text-xs"
+                    />
+                  </div>
+                ) : null
+              }
+            />
             <select
               id="base-model"
               className="field"
@@ -226,9 +234,7 @@ export default function NewRunDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="method" className="mb-2 block text-sm">
-                Training method
-              </label>
+              <SettingLabel htmlFor="method" label="Training method" termKey="trainingMethod" />
               <select id="method" className="field" {...register('method')}>
                 <option value="QLoRA">QLoRA</option>
                 <option value="LoRA">LoRA</option>
@@ -237,9 +243,7 @@ export default function NewRunDialog({
             </div>
 
             <div>
-              <label htmlFor="dataset" className="mb-2 block text-sm">
-                Training dataset
-              </label>
+              <SettingLabel htmlFor="dataset" label="Training dataset" termKey="trainingDataset" />
               <select id="dataset" className="field" {...register('dataset')}>
                 <option value="">Select a dataset</option>
                 {datasets.map((dataset) => {
@@ -263,9 +267,11 @@ export default function NewRunDialog({
           <div className="grid grid-cols-3 gap-3">
             {HYPERPARAM_FIELDS.map((field) => (
               <div key={field.key}>
-                <label htmlFor={field.key} className="mb-2 block text-sm">
-                  {field.label}
-                </label>
+                <SettingLabel
+                  htmlFor={field.key}
+                  label={field.label}
+                  termKey={field.termKey}
+                />
                 <input
                   id={field.key}
                   type={field.type}
@@ -281,27 +287,29 @@ export default function NewRunDialog({
             ))}
           </div>
 
-          <label
-            htmlFor="auto-balance"
-            className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background p-3 text-xs leading-5"
-          >
-            <input
-              id="auto-balance"
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]"
-              {...register('autoBalance')}
-            />
-            <span>
-              <span className="font-medium text-foreground">
-                Balance CUDA memory (recommended)
+          <LexiconTip termKey="autoBalanceCuda" side="top" align="start">
+            <label
+              htmlFor="auto-balance"
+              className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background p-3 text-xs leading-5"
+            >
+              <input
+                id="auto-balance"
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-[hsl(var(--primary))]"
+                {...register('autoBalance')}
+              />
+              <span>
+                <span className="font-medium text-foreground">
+                  Balance CUDA memory (recommended)
+                </span>
+                <span className="mt-0.5 block text-muted-foreground">
+                  Caps GPU VRAM around ~85% for Windows responsiveness, uses paged 8-bit AdamW, and
+                  switches oversized Full fine-tune / LoRA runs to 4-bit QLoRA instead of
+                  CPU/pagefile lockups.
+                </span>
               </span>
-              <span className="mt-0.5 block text-muted-foreground">
-                Caps GPU VRAM around ~85% for Windows responsiveness, uses paged 8-bit AdamW, and
-                switches oversized Full fine-tune / LoRA runs to 4-bit QLoRA instead of CPU/pagefile
-                lockups.
-              </span>
-            </span>
-          </label>
+            </label>
+          </LexiconTip>
 
           <p className="flex gap-2 rounded-lg bg-secondary p-3 text-xs leading-5 text-muted-foreground">
             <Info size={17} className="shrink-0" />

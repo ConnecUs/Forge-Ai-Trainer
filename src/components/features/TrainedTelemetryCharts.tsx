@@ -7,7 +7,16 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import type { LexiconKey } from '@/constants/lexicon';
+import { LexiconTerm } from '@/components/ui/lexicon-tip';
 import type { ProceduralChartSpec, TelemetryPoint } from '@/types/trainer';
+
+const WIDGET_LEXICON: Record<string, LexiconKey> = {
+  loss: 'trainingLoss',
+  accuracy: 'meanTokenAccuracy',
+  entropy: 'outputEntropy',
+  gradNorm: 'gradNorm',
+};
 
 interface TrainedTelemetryChartsProps {
   widgets: ProceduralChartSpec[];
@@ -38,7 +47,13 @@ export default function TrainedTelemetryCharts({
           <section key={widget.id} className="panel min-w-0 p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-base font-semibold tracking-tight">{widget.title}</h3>
+                <h3 className="text-base font-semibold tracking-tight">
+                  {WIDGET_LEXICON[widget.id] ? (
+                    <LexiconTerm termKey={WIDGET_LEXICON[widget.id]} label={widget.title} />
+                  ) : (
+                    widget.title
+                  )}
+                </h3>
                 <p className="mt-1 text-xs text-muted-foreground">{widget.subtitle}</p>
               </div>
               <span className="badge font-mono text-[10px] text-muted-foreground">

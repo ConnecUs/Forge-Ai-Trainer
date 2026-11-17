@@ -278,3 +278,121 @@ export interface TrainedModelDetailResponse {
   liveProcessCount: number;
   listeningPortCount: number;
 }
+
+export interface ExtractorStatus {
+  label: string;
+  ready: boolean;
+  note: string;
+  modules: Record<string, boolean>;
+  system: Record<string, boolean>;
+}
+
+export interface BookToSkillStatus {
+  available: boolean;
+  rootDir: string;
+  supportedFormats?: string;
+  error?: string;
+  extractors: ExtractorStatus[];
+}
+
+export interface KnowledgeSectionPreview {
+  index: number;
+  title: string;
+  words: number;
+  tokens: number;
+  preview: string;
+}
+
+export interface KnowledgeSourceRecord {
+  id: string;
+  name: string;
+  mode: 'text' | 'technical';
+  sourceDir: string;
+  totalSources: number;
+  words: number;
+  chars: number;
+  estimatedTokens: number;
+  chaptersDetected: number;
+  hasToc: boolean;
+  invisibleRemoved: number;
+  securityFindings: Array<{ line: number; ruleId: string; message: string }>;
+  glossaryCount: number;
+  patternCount: number;
+  sources: Array<{
+    filename: string;
+    sourceFile: string;
+    format: string;
+    extractionMethod: string;
+    words: number;
+    estimatedTokens: number;
+    pages: number;
+  }>;
+  sectionsPreview: KnowledgeSectionPreview[];
+  glossaryPreview: Array<{ term: string; definition: string; section: string }>;
+  patternsPreview: Array<{ title: string; summary: string; section: string }>;
+  created: string;
+}
+
+export type SkillValidationLens = 'claude' | 'copilot' | 'amp';
+
+export interface BuiltSkillRecord {
+  id: string;
+  sourceId: string;
+  sourceName: string;
+  slug: string;
+  title: string;
+  description: string;
+  lens: SkillValidationLens;
+  skillDir: string;
+  chaptersCount: number;
+  glossaryCount: number;
+  patternsCount: number;
+  validation: {
+    passed: boolean;
+    errors: string[];
+    warnings: string[];
+  };
+  securityScan: {
+    passed: boolean;
+    findings: Array<{ path: string; line: number; ruleId: string; message: string }>;
+  };
+  created: string;
+}
+
+export interface WorkspaceSkillSummary {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  skillDir: string;
+  chaptersCount: number;
+  sourceRoot: string;
+}
+
+export interface KnowledgeStatusResponse {
+  bookToSkill: BookToSkillStatus;
+  knowledgeSources: KnowledgeSourceRecord[];
+  skills: BuiltSkillRecord[];
+  workspaceSkills: WorkspaceSkillSummary[];
+}
+
+export type CompileDatasetFormat = 'messages' | 'instruction' | 'text';
+
+export interface CompiledDatasetStats {
+  outputFile: string;
+  examples: number;
+  duplicatesRemoved: number;
+  estimatedTokens: number;
+  avgTokensPerExample: number;
+  sizeBytes: number;
+  format: CompileDatasetFormat;
+  sampleRows: unknown[];
+}
+
+export interface DatasetPreviewResponse {
+  dataset: Dataset;
+  format: string;
+  totalLines: number;
+  avgChars: number;
+  sampleRows: unknown[];
+}

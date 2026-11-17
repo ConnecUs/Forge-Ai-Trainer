@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   ArrowUpRight,
+  BookMarked,
   Box,
   Cpu,
   Database,
@@ -16,6 +17,7 @@ const NAV_LINKS = [
   { to: '/', label: 'Overview', icon: LayoutDashboard },
   { to: '/training', label: 'Training runs', icon: Layers3 },
   { to: '/trained', label: 'Trained models', icon: Sparkles },
+  { to: '/skills', label: 'Skill studio', icon: BookMarked },
   { to: '/datasets', label: 'Datasets', icon: Database },
   { to: '/capture', label: 'Capture studio', icon: ScanLine },
   { to: '/models', label: 'Model library', icon: Box },
@@ -59,8 +61,8 @@ export default function Sidebar() {
           >
             <Icon size={18} />
             {label}
-            {to === '/capture' && (
-              <span className="ml-auto hidden rounded border border-border px-1.5 py-0.5 text-[9px] lg:block">
+            {to === '/skills' && (
+              <span className="ml-auto hidden rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary lg:block">
                 NEW
               </span>
             )}

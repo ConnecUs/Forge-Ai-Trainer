@@ -1,12 +1,15 @@
 import { Link } from 'react-router-dom';
-import { Database, FileCheck2, Plus, ShieldCheck } from 'lucide-react';
+import { BookMarked, Database, FileCheck2, Plus, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import PageHeading from '@/components/layout/PageHeading';
 import DatasetTable from '@/components/features/DatasetTable';
+import { LexiconTerm } from '@/components/ui/lexicon-tip';
 import { useTrainer } from '@/hooks/useTrainer';
 
 export default function Datasets() {
   const { datasets } = useTrainer();
+
+  const readyCount = datasets.filter((d) => Boolean(d.filePath || d.content)).length;
 
   const summaryCards = [
     {
@@ -16,13 +19,13 @@ export default function Datasets() {
     },
     {
       icon: FileCheck2,
-      label: 'Datasets available',
-      value: `${datasets.length} datasets`,
+      label: 'Ready on disk',
+      value: `${readyCount} / ${datasets.length} datasets`,
     },
     {
       icon: ShieldCheck,
       label: 'Storage destination',
-      value: 'This browser',
+      value: 'Local disk (data/datasets/)',
     },
   ];
 
@@ -31,14 +34,28 @@ export default function Datasets() {
       <PageHeading
         eyebrow="Good data. Better intelligence."
         title="Your knowledge, organized."
-        description="Bring documents, conversations, and captured workflows together."
+        description={
+          <>
+            Inspect your <LexiconTerm termKey="trainingDataset" label="JSONL datasets" />, compile
+            new ones from books and <LexiconTerm termKey="agentSkill" label="Agent Skills" />, or
+            capture conversations directly.
+          </>
+        }
         action={
-          <Button asChild className="h-11 gap-2">
-            <Link to="/capture">
-              <Plus size={16} />
-              Import dataset
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" className="h-11 gap-2">
+              <Link to="/skills">
+                <BookMarked size={16} />
+                Skill &amp; knowledge studio
+              </Link>
+            </Button>
+            <Button asChild className="h-11 gap-2">
+              <Link to="/capture">
+                <Plus size={16} />
+                Capture / import
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -57,8 +74,8 @@ export default function Datasets() {
       <DatasetTable />
 
       <p className="mt-5 text-sm leading-6 text-muted-foreground">
-        Sample datasets show the intended workflow. Imported data is stored in this browser, not
-        uploaded to a server.
+        Sample datasets show the intended schema. Extracted and compiled datasets are stored locally
+        on disk under <code>data/datasets/</code> and never uploaded externally.
       </p>
     </>
   );

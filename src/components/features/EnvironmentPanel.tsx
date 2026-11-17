@@ -1,6 +1,7 @@
 import { ArrowUpRight, Cpu, HardDrive, MemoryStick, ShieldCheck, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { LexiconTerm, LexiconTip } from '@/components/ui/lexicon-tip';
 import { useTrainer } from '@/hooks/useTrainer';
 
 export default function EnvironmentPanel() {
@@ -63,7 +64,11 @@ export default function EnvironmentPanel() {
             <div key={label} className="flex items-center justify-between text-xs">
               <span className="flex items-center gap-2 text-muted-foreground">
                 <Icon size={14} />
-                {label}
+                {label === 'GPU memory' ? (
+                  <LexiconTerm termKey="vramHeadroom" label={label} />
+                ) : (
+                  label
+                )}
               </span>
               <span>{value}</span>
             </div>
@@ -81,15 +86,17 @@ export default function EnvironmentPanel() {
               : 'Install server/requirements.txt with CUDA PyTorch to enable GPU fine-tuning.'}
           </p>
           {environment?.agentConnected && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 h-9 w-full gap-2 text-xs"
-              onClick={() => void repairEnvironment()}
-            >
-              <Wrench size={14} />
-              {environment?.trainingReady ? 'Verify / Auto-fix CUDA' : 'Auto-fix CUDA / Python'}
-            </Button>
+            <LexiconTip termKey="tritonCuda" side="top">
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 h-9 w-full gap-2 text-xs"
+                onClick={() => void repairEnvironment()}
+              >
+                <Wrench size={14} />
+                {environment?.trainingReady ? 'Verify / Auto-fix CUDA' : 'Auto-fix CUDA / Python'}
+              </Button>
+            </LexiconTip>
           )}
         </div>
       </section>
