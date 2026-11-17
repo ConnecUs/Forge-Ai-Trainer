@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 10% 6%;
+    --foreground: 120 4% 93%;
+    --card: 210 8% 9%;
+    --primary: 79 84% 68%;
+    --primary-foreground: 210 15% 8%;
+    --secondary: 210 7% 14%;
+    --muted: 210 7% 12%;
+    --muted-foreground: 210 5% 62%;
+    --accent: 210 7% 17%;
+    --border: 210 7% 18%;
+    --destructive: 0 75% 63%;
+    --chart: 160 49% 56%;
+    --radius: 12px;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    margin: 0;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  button {
+    @apply disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.25);
+  }
+
+  input,
+  select,
+  textarea {
+    color-scheme: dark;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-border bg-card;
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground;
+  }
+
+  .field {
+    @apply min-h-11 w-full rounded-lg border border-border bg-background px-3 py-2 text-base;
+  }
+
+  .icon-button {
+    @apply flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary px-2 py-1 text-xs font-medium;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold tracking-tight;
+  }
+}
